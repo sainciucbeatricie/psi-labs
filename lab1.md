@@ -2,138 +2,136 @@
 
 ## 1. Cercetare de produs
 
-**Întrebarea de cercetare:** Cum ajută produsele existente un User să urmărească informații de piață, și ce părți ar trebui incluse în prima versiune a acestui Dashboard?
+**Întrebare:** Cum ajută produsele existente un User să urmărească informații de piață, și ce părți aparțin primei versiuni a acestui Dashboard?
 
-Am analizat un produs de tip market-data (**Yahoo Finance**) și un produs de tip trading (**Interactive Brokers**).
+Am analizat un produs de tip market-data (**Yahoo Finance**) și unul de tip trading (**Interactive Brokers**).
 
 | Produs | Utilizator probabil și scop | Pattern reutilizabil |
 |---|---|---|
-| Yahoo Finance | Un investitor ocazional care vrea să verifice prețurile curente, mișcarea indicilor și știri despre acțiuni/fonduri care îl interesează, fără să plaseze tranzacții. | O **listă de urmărire (watchlist)** cu simboluri alese, care arată prețul live, variația zilnică (%), și un mic grafic de preț; valoare totală de portofoliu dacă utilizatorul adaugă manual deținerile. |
-| Interactive Brokers | Un investitor/trader activ care deține deja poziții și vrea să vadă valoarea reală a portofoliului, câștigurile/pierderile, și să execute tranzacții. | O **vedere de poziții/portofoliu** care arată cantitatea deținută, costul mediu, valoarea curentă și câștigul/pierderea nerealizată pentru fiecare deținere, plus soldul total la nivel de cont. |
+| Yahoo Finance | Investitor ocazional care verifică prețuri și mișcarea pieței, fără să tranzacționeze. | Listă de urmărire (watchlist) cu preț live și variație zilnică (%). |
+| Interactive Brokers | Investitor activ care deține poziții reale și vrea să vadă valoarea portofoliului și câștigul/pierderea. | Vedere de portofoliu: cantitate, cost mediu, valoare curentă, câștig/pierdere per deținere. |
 
-**Cum a influențat asta scopul:** Yahoo Finance arată că o listă de urmărire simplă cu preț + variație zilnică este experiența de bază pentru "urmărirea pieței" și nu necesită cont. Interactive Brokers arată că investitorii vor să vadă și performanța *propriilor* deținerilor (câștig/pierdere, valoare totală), nu doar prețurile brute de piață — dar plasarea de tranzacții este o preocupare mult mai mare, separată. Asta a confirmat decizia de scop: **prima versiune trebuie să permită unui User să urmărească o listă de simboluri și performanța propriilor deținerilor, dar nu trebuie să permită plasarea de tranzacții** (asta aparține unui produs de trading, nu acestui Dashboard).
+**Concluzie de scop:** prima versiune trebuie să combine cele două — urmărirea prețurilor (ca Yahoo Finance) și performanța propriilor deținerilor (ca Interactive Brokers) — dar **fără** plasarea de tranzacții, care rămâne exclusiv domeniul unui produs de trading.
 
 ## 2. Stakeholderi și actori
 
 | Stakeholder | Motivație | Influență | Motiv |
 |---|---|---|---|
-| Investitorul individual (User final) | Ridicată | Ridicată | Folosește produsul zilnic pentru a lua decizii financiare personale; dacă produsul nu îl servește, produsul eșuează. |
-| Furnizorul de date de piață | Scăzută | Ridicată | Nu îi pasă de acest produs specific, dar Dashboard-ul depinde complet de el pentru prețuri; dacă își schimbă API-ul/termenii, Dashboard-ul trebuie să se adapteze. |
-| Furnizorul de brokeraj/cont | Scăzută | Ridicată | Deține înregistrarea reală a deținerilor User-ului; Dashboard-ul depinde total de acuratețea și disponibilitatea acestor date. |
-| Product Owner (echipa care construiește Dashboard-ul) | Ridicată | Ridicată | Decide direct scopul, prioritățile și ce se lansează. |
-| Autoritatea de reglementare financiară | Scăzută | Scăzută (direct) | Nu interacționează direct cu Dashboard-ul, dar reguli privind afișarea datelor financiare / disclaimere ar putea constrânge produsul. |
-| Echipa de suport pentru clienți | Medie | Scăzută | Vrea ca produsul să fie suficient de simplu încât să reducă numărul de tichete de suport, dar nu controlează deciziile de produs. |
+| Investitorul individual (User final) | Ridicată | Ridicată | Este singurul beneficiar direct; decizia lui de a folosi sau abandona produsul îi determină succesul. |
+| Echipa de produs | Ridicată | Ridicată | Decide scopul, prioritățile și bugetul; controlează complet ce se construiește. |
+| Furnizorul de date de piață | Scăzută | Ridicată | Nu are interes specific în acest produs, dar controlează unilateral disponibilitatea și costul datelor de care depinde întregul Dashboard. |
+| Furnizorul de brokeraj/cont | Scăzută | Ridicată | Nu e interesat de acest produs anume, dar deține singura sursă reală a deținerilor Investitorului; fără acces la datele lui, Dashboard-ul nu poate funcționa. |
+| Autoritatea de reglementare financiară | Scăzută | Ridicată | Nu vizează acest produs specific, dar poate impune reguli obligatorii (disclaimere, interzicerea sfaturilor automate de investiții) care schimbă scopul produsului indiferent de dorința echipei. |
+| Echipa de suport pentru clienți | Ridicată | Scăzută | Are interes direct ca produsul să fie simplu de folosit, dar nu ia parte la deciziile de scop sau prioritizare. |
 
 **Matricea Motivație / Influență**
 
 | Motivație | Influență scăzută | Influență ridicată |
 |---|---|---|
-| **Ridicată** | Echipa de suport pentru clienți | Investitorul individual, Product Owner |
-| **Scăzută** | Autoritatea de reglementare | Furnizorul de date de piață, Furnizorul de brokeraj/cont |
+| **Ridicată** | Echipa de suport pentru clienți | Investitorul individual, Echipa de produs |
+| **Scăzută** | — | Furnizorul de date de piață, Furnizorul de brokeraj/cont, Autoritatea de reglementare |
 
 **Clasificare (stakeholder vs. actor vs. sistem extern):**
 
 - **Actor uman direct:** Investitorul individual — se autentifică și folosește direct Dashboard-ul.
-- **Sistem extern:** Furnizorul de date de piață — furnizează prețuri/cotații direct către Dashboard.
-- **Sistem extern:** Furnizorul de brokeraj/cont — furnizează deținerile/tranzacțiile reale ale User-ului direct către Dashboard.
-- **Doar stakeholder (nu apare în vederea C4):** Product Owner, Autoritatea de reglementare, Echipa de suport — influențează sau sunt afectați de produs, dar nu interacționează direct cu sistemul în funcțiune.
+- **Sistem extern:** Furnizorul de date de piață — furnizează prețuri direct către Dashboard.
+- **Sistem extern:** Furnizorul de brokeraj/cont — furnizează deținerile reale direct către Dashboard.
+- **Doar stakeholder (nu apare în C4):** Echipa de produs, Autoritatea de reglementare, Echipa de suport — influențează produsul, dar nu interacționează direct cu sistemul.
 
 ## 3. Promisiunea produsului și scopul
 
-> **Personal Investment Dashboard** ajută **investitorii individuali** să rezolve **problema urmăririi prețurilor de piață și a propriilor deținerilor din surse multiple și deconectate**, astfel încât **să poată vedea o imagine clară și actualizată a investițiilor lor și să ia decizii informate**.
+> **Personal Investment Dashboard** ajută **investitorii individuali** să rezolve **urmărirea prețurilor de piață și a propriilor deținerilor din surse multiple, deconectate**, astfel încât **să vadă o imagine clară și actualizată a investițiilor lor și să ia decizii informate**.
 
-**Cinci obiective (goals)** (fiecare este un rezultat vizibil pentru User):
+**Cinci obiective:**
 
-1. Un User poate vedea prețul curent și variația zilnică pentru orice simbol de piață pe care alege să îl urmărească.
-2. Un User poate vedea valoarea totală curentă a propriilor deținerilor, actualizată cu prețurile curente de piață.
-3. Un User poate vedea câștigul sau pierderea (în valoare și %) pentru fiecare deținere de la achiziționare.
-4. Un User este informat clar când un preț sau o valoare de deținere este învechită sau indisponibilă, în loc să vadă cifre greșite fără avertisment.
-5. Un User poate căuta și adăuga un simbol nou în lista de urmărire în câteva secunde.
+1. Un User vede prețul curent și variația zilnică a oricărui simbol urmărit.
+2. Un User vede valoarea totală curentă a propriilor deținerilor.
+3. Un User vede câștigul/pierderea per deținere de la achiziționare.
+4. Un User este informat explicit când o valoare e învechită sau indisponibilă.
+5. Un User adaugă un simbol nou în lista de urmărire în câteva secunde.
 
-**Trei non-obiective (non-goals)** (eliminate din prima versiune):
+**Trei non-obiective:**
 
-1. Plasarea, modificarea sau anularea de tranzacții de orice fel.
-2. Raportare fiscală sau generarea de documente fiscale oficiale.
-3. Sfaturi de investiții personalizate sau recomandări automate (ex: sugestii de "cumpără/vinde").
+1. Plasarea, modificarea sau anularea de tranzacții.
+2. Raportare fiscală sau documente fiscale oficiale.
+3. Sfaturi de investiții personalizate sau recomandări automate.
 
 ## 4. Cerințe funcționale
 
-### DASH-1
-**Scopul actorului:** Investitorul trebuie să vadă cum evoluează astăzi un simbol de piață care îl interesează.
-**User story:** În calitate de Investitor, vreau să adaug un simbol în lista mea de urmărire și să văd prețul curent și variația zilnică, astfel încât să pot verifica rapid cum evoluează.
-**Definiții de finalizare (definitions of done):**
-- Simbolul apare în lista de urmărire cu prețul curent și variația zilnică (%) afișate.
-- Dacă simbolul nu există sau nu poate fi găsit, Investitorul vede un mesaj clar "nu a fost găsit", nu un rezultat gol.
-- Lista de urmărire suportă cel puțin 20 de simboluri per Investitor.
+Fiecare user story descrie mai întâi **scopul actorului** (ce vrea Investitorul să obțină), apoi **user story-ul** formal, apoi **definițiile de finalizare** care confirmă când cerința e îndeplinită.
 
-### DASH-2
-**Scopul actorului:** Investitorul trebuie să știe valoarea totală curentă a tot ce deține.
-**User story:** În calitate de Investitor, vreau să văd valoarea totală curentă a deținerilor mele, astfel încât să știu cum evoluează portofoliul meu în ansamblu chiar acum.
-**Definiții de finalizare:**
-- Dashboard-ul afișează o valoare totală de portofoliu, calculată din prețurile curente.
-- Dacă prețul curent al unei dețineri nu este disponibil, totalul este afișat cu o notă vizibilă că este incomplet, în loc să fie exclus fără avertisment.
-- Totalul se actualizează de fiecare dată când Investitorul deschide Dashboard-ul.
+### DASH-1 — Urmărire preț simbol
 
-### DASH-3
-**Scopul actorului:** Investitorul trebuie să știe dacă o anumită deținere aduce câștig sau pierdere.
-**User story:** În calitate de Investitor, vreau să văd câștigul sau pierderea pentru fiecare deținere de când am cumpărat-o, astfel încât să pot decide dacă păstrez sau reconsider acea investiție.
-**Definiții de finalizare:**
-- Fiecare deținere afișează câștigul/pierderea atât în sumă, cât și în procent.
-- Dacă prețul original de achiziție lipsește, deținerea afișează "cost de bază indisponibil" în loc de un câștig/pierdere fals sau zero.
-- Câștigurile sunt distinse vizual de pierderi (de exemplu, o prezentare clar diferită, nu doar culoare).
+| | |
+|---|---|
+| **Scop actor** | Investitorul vrea să vadă cum evoluează azi un simbol care îl interesează. |
+| **User story** | Ca Investitor, vreau să adaug un simbol în lista mea de urmărire și să văd prețul curent și variația zilnică, ca să pot verifica rapid cum evoluează. |
+| **Definiții de finalizare** | • Simbolul apare cu preț curent și variație zilnică (%).<br>• Dacă simbolul nu e găsit, apare un mesaj clar "nu a fost găsit".<br>• Lista suportă minim 20 de simboluri. |
 
-### DASH-4
-**Scopul actorului:** Investitorul trebuie să aibă încredere că numerele afișate sunt actuale.
-**User story:** În calitate de Investitor, vreau să fiu informat când datele afișate sunt învechite sau lipsesc, astfel încât să nu iau decizii pe baza unor informații depășite.
-**Definiții de finalizare:**
-- Fiecare preț sau valoare afișează ora ultimei actualizări.
-- Dacă datele sunt mai vechi decât o limită de prospețime definită, Dashboard-ul le marchează vizibil ca "învechite", nu le prezintă ca fiind live.
-- Dacă o sursă de date este complet inaccesibilă, secțiunea afectată arată o stare explicită "indisponibil", nu un ecran gol sau înșelător.
+### DASH-2 — Valoare totală portofoliu
 
-### DASH-5
-**Scopul actorului:** Investitorul trebuie să poată adăuga sau elimina un simbol din ce urmărește.
-**User story:** În calitate de Investitor, vreau să caut și să adaug un simbol nou în lista mea de urmărire, sau să elimin unul care nu mă mai interesează, astfel încât Dashboard-ul meu să arate doar ce este relevant pentru mine.
-**Definiții de finalizare:**
-- O căutare returnează simbolurile potrivite în câteva secunde pentru o interogare validă.
-- Adăugarea unui simbol deja urmărit nu creează o intrare duplicat.
-- Eliminarea unui simbol îl scoate imediat din vederea listei de urmărire.
+| | |
+|---|---|
+| **Scop actor** | Investitorul vrea să știe valoarea totală curentă a tot ce deține. |
+| **User story** | Ca Investitor, vreau să văd valoarea totală curentă a deținerilor mele, ca să știu cum evoluează portofoliul chiar acum. |
+| **Definiții de finalizare** | • Dashboard-ul afișează o valoare totală calculată din prețuri curente.<br>• Dacă un preț lipsește, totalul e marcat vizibil ca "incomplet".<br>• Totalul se actualizează la fiecare deschidere. |
 
-*(Împreună, DASH-1 până la DASH-5 acoperă: urmărirea simbolurilor de piață, vizualizarea valorii totale, vizualizarea performanței per deținere, încrederea în prospețimea datelor, și gestionarea listei de urmărire. DASH-2 și DASH-4 includ fiecare o verificare pentru rezultate lipsă/învechite/nesuportate, îndeplinind cerința de "cel puțin două user stories".)*
+### DASH-3 — Câștig/pierdere per deținere
+
+| | |
+|---|---|
+| **Scop actor** | Investitorul vrea să știe dacă o deținere e pe plus sau pe minus. |
+| **User story** | Ca Investitor, vreau să văd câștigul/pierderea fiecărei dețineri de la cumpărare, ca să decid dacă o păstrez. |
+| **Definiții de finalizare** | • Fiecare deținere arată câștig/pierdere în sumă și procent.<br>• Dacă lipsește costul de achiziție, apare "cost de bază indisponibil" în loc de o valoare falsă.<br>• Câștigurile sunt distinse vizual clar de pierderi. |
+
+### DASH-4 — Prospețimea datelor
+
+| | |
+|---|---|
+| **Scop actor** | Investitorul vrea să aibă încredere că numerele afișate sunt actuale. |
+| **User story** | Ca Investitor, vreau să fiu informat când datele sunt învechite sau lipsesc, ca să nu iau decizii pe baza unor informații depășite. |
+| **Definiții de finalizare** | • Fiecare valoare arată ora ultimei actualizări.<br>• Datele mai vechi decât limita stabilită sunt marcate explicit "învechit".<br>• Dacă o sursă e inaccesibilă, apare o stare explicită "indisponibil". |
+
+### DASH-5 — Gestionarea listei de urmărire
+
+| | |
+|---|---|
+| **Scop actor** | Investitorul vrea să adauge sau să elimine un simbol din ce urmărește. |
+| **User story** | Ca Investitor, vreau să caut și să adaug/elimin un simbol din lista mea, ca să văd doar ce e relevant pentru mine. |
+| **Definiții de finalizare** | • Căutarea returnează rezultate în câteva secunde.<br>• Adăugarea unui simbol deja existent nu creează duplicate.<br>• Eliminarea unui simbol îl scoate imediat din listă. |
+
+*(DASH-2 și DASH-4 acoperă cerința de minim două stories cu verificare pentru rezultat lipsă/învechit/nesuportat.)*
 
 ## 5. Vederea C4 System Context
 
 ```mermaid
 graph TD
-    Investitor["Investitor<br/>(persoană)"]
-    Dashboard["Personal Investment Dashboard<br/>(sistem software)"]
-    DateDePiata["Furnizor de date de piață<br/>(sistem extern)"]
-    Brokeraj["Furnizor de brokeraj / cont<br/>(sistem extern)"]
+    Investitor["Investitorul individual<br/>[Persoană]"]
+    Dashboard["Personal Investment Dashboard<br/>[Sistem software]"]
+    DateDePiata["Furnizor de date de piață<br/>[Sistem extern]"]
+    Brokeraj["Furnizor de brokeraj / cont<br/>[Sistem extern]"]
 
-    Investitor -->|"Vizualizează lista de urmărire, valoarea portofoliului și câștigul/pierderea"| Dashboard
-    Dashboard -->|"Solicită prețuri curente și variația zilnică pentru simbolurile urmărite"| DateDePiata
-    Dashboard -->|"Solicită deținerile și istoricul de tranzacții al Investitorului"| Brokeraj
+    Investitor -->|"Vizualizează lista de urmărire, portofoliul și câștigul/pierderea"| Dashboard
+    Dashboard -->|"Solicită prețuri curente și variații zilnice"| DateDePiata
+    Dashboard -->|"Solicită deținerile și istoricul de tranzacții"| Brokeraj
 ```
 
-**Note pentru fiecare sistem extern:**
+**Note:**
 
-- **Furnizorul de date de piață** — necesar pentru obiectivele DASH-1 (prețuri în lista de urmărire) și DASH-4 (prospețime). Furnizează prețul curent și variația zilnică per simbol. Dacă rezultatul lipsește sau este învechit, Investitorul vede o marcare explicită "învechit"/"indisponibil" pe simbolul afectat, niciodată un număr greșit afișat tacit.
-- **Furnizorul de brokeraj / cont** — necesar pentru obiectivele DASH-2 și DASH-3 (valoarea portofoliului și câștig/pierdere). Furnizează deținerile reale, cantitățile și costul original ale Investitorului. Dacă acest rezultat lipsește sau este neautorizat (de exemplu, conexiunea a fost revocată), Investitorul vede o stare clară "deținerile sunt indisponibile — reconectați contul", în loc de o valoare de portofoliu goală sau inventată.
-
-Dashboard-ul are responsabilitatea de a transforma aceste rezultate externe brute într-o singură vedere clară și de încredere pentru Investitor — nu deține și nu stochează el însuși datele sursă.
-
----
+- **Furnizorul de date de piață** — necesar pentru DASH-1 și DASH-4. Dacă un preț lipsește sau e învechit, Investitorul vede o marcare explicită, nu un număr greșit tacit.
+- **Furnizorul de brokeraj/cont** — necesar pentru DASH-2 și DASH-3. Dacă accesul e revocat, Investitorul vede "deținerile sunt indisponibile — reconectați contul", nu o valoare inventată.
 
 ## Checklist
 
 - [x] Am cercetat cel puțin două produse existente.
-- [x] Am citat dovezi pentru fiecare pattern de produs ales.
-- [x] Cercetarea mea a schimbat sau confirmat cel puțin o decizie de scop.
-- [x] Am mapat motivația și influența stakeholderilor.
-- [x] Am separat stakeholderii, actorii umani direcți și sistemele externe.
-- [x] Promisiunea produsului meu este o singură propoziție clară.
-- [x] Obiectivele și non-obiectivele mele corespund cu promisiunea produsului.
-- [x] Am scris cel puțin cinci user stories.
-- [x] Fiecare story are două până la patru definiții de finalizare.
-- [x] Cel puțin două stories includ un rezultat alternativ important.
-- [x] Dependențele mele externe includ un rezultat lipsă, învechit sau nesuportat, vizibil pentru User.
-- [x] Am creat o vedere C4 System Context a Dashboard-ului.
+- [x] Am citat dovezi pentru fiecare pattern ales.
+- [x] Cercetarea a confirmat o decizie de scop.
+- [x] Am mapat motivația și influența stakeholderilor (binar High/Low).
+- [x] Am separat stakeholderii, actorii și sistemele externe.
+- [x] Promisiunea produsului e o singură propoziție.
+- [x] Obiectivele/non-obiectivele corespund promisiunii.
+- [x] Am scris cinci user stories.
+- [x] Fiecare story are 2-4 definiții de finalizare.
+- [x] Cel puțin două stories au un rezultat alternativ important.
+- [x] Dependențele externe includ un rezultat lipsă/învechit/nesuportat.
+- [x] Am creat vederea C4 System Context.
