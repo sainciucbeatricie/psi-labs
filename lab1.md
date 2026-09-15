@@ -17,7 +17,7 @@ Am analizat un produs de tip market-data (**Yahoo Finance**) și unul de tip tra
 
 | Stakeholder | Motivație | Influență | Motiv |
 |---|---|---|---|
-| Investitorul individual (User final) | Ridicată | Ridicată | Este singurul beneficiar direct; decizia lui de a folosi sau abandona produsul îi determină succesul. |
+| Investitorul individual (User final) | Ridicată | Scăzută | Este singurul beneficiar direct; decizia lui de a folosi sau abandona produsul îi determină succesul. |
 | Echipa de produs | Ridicată | Ridicată | Decide scopul, prioritățile și bugetul; controlează complet ce se construiește. |
 | Furnizorul de date de piață | Scăzută | Ridicată | Nu are interes specific în acest produs, dar controlează unilateral disponibilitatea și costul datelor de care depinde întregul Dashboard. |
 | Furnizorul de brokeraj/cont | Scăzută | Ridicată | Nu e interesat de acest produs anume, dar deține singura sursă reală a deținerilor Investitorului; fără acces la datele lui, Dashboard-ul nu poate funcționa. |
