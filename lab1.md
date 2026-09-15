@@ -104,14 +104,10 @@ Am analizat un produs de tip market-data (**Yahoo Finance**) și un produs de ti
 
 ```mermaid
 graph TD
-    Investitor["Investitor
-(persoană)"]
-    Dashboard["Personal Investment Dashboard
-(sistem software)"]
-    DateDePiata["Furnizor de date de piață
-(sistem extern)"]
-    Brokeraj["Furnizor de brokeraj / cont
-(sistem extern)"]
+    Investitor["Investitor<br/>(persoană)"]
+    Dashboard["Personal Investment Dashboard<br/>(sistem software)"]
+    DateDePiata["Furnizor de date de piață<br/>(sistem extern)"]
+    Brokeraj["Furnizor de brokeraj / cont<br/>(sistem extern)"]
 
     Investitor -->|"Vizualizează lista de urmărire, valoarea portofoliului și câștigul/pierderea"| Dashboard
     Dashboard -->|"Solicită prețuri curente și variația zilnică pentru simbolurile urmărite"| DateDePiata
