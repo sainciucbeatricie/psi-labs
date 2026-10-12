@@ -8,11 +8,21 @@ Load targets from Lab 2 (used to size the design):
 
 | Target | Value from Lab 2 |
 |---|---|
-| Concurrent Users | **[FILL IN from Lab 2]** |
-| Read latency target | **[FILL IN from Lab 2]** |
-| Sync frequency / data freshness limit | **[FILL IN from Lab 2]** |
+| Users (three scales) | 300 / 3,000 / 30,000 |
+| Steady read load | 79.2 / 792 / 7,920 RPS |
+| Market-open peak (with 10% margin) | 103 / 1,030 / 10,296 RPS |
+| Heaviest read (Stock price) | 60 / 600 / 6,000 RPS |
+| Latency | p95 of reads under 2 s. A read over 2 s is cut and returns a result clearly marked UNAVAILABLE. |
+| Availability | 99.9% in market hours (09:30-16:00, Mon-Fri), 99.5% the rest of the day |
+| Price freshness | Up to 15 min: normal. Over 15 min: marked DELAYED. Over 60 min without update: UNAVAILABLE (never 0). |
+| Watchlist consistency | Read-your-writes: the same User's next read shows the change immediately |
+| Storage | About 5,700 Stocks, about 71.1 MB/day of history, about 17.93 GB per year (252-day retention) |
 
-Design consequences of these targets: User reads are served only from our own Database, so read latency does not depend on the Provider. The Provider is called only by the Market Data Collector on a schedule, so the number of Users does not change the number of Provider requests.
+Design consequences of these targets:
+- User reads are served only from our own Database, so read latency does not depend on the Provider. The latest-price set is tiny (about 0.14 MB), so the heaviest read (Stock price) can be answered quickly from the Database.
+- The Provider is called only by the Market Data Collector on a schedule, so the number of Users does not change the number of Provider requests.
+- The Collector is a separate container, so a Provider failure cannot slow or break the other reads.
+- Watchlist reads and writes use the same Database and success is reported only after commit, so read-your-writes holds.
 
 ---
 
@@ -66,6 +76,7 @@ flowchart LR
 - This is the smallest set that meets the requirements: separating the Collector from the Application keeps Provider failures away from User reads, and the Database is shared storage between the two.
 - The Dashboard Application never calls the Provider. Provider credentials exist only in the Collector configuration on the server.
 - The Collector starts syncs from its own schedule.
+- No separate cache container is added. The latest-price data is small and the Database serves it. If load tests show p95 above 2 s, a cache is the first change to consider.
 
 ---
 
@@ -131,7 +142,7 @@ sequenceDiagram
             Note over C,D: The invalid batch is rejected and never stored. Previously accepted data stays unchanged and readable.
             C->>C: Log the rejection
         else Batch valid
-            C->>D: Store batch in one transaction
+            C->>D: Store batch in one transaction (latest prices and history points)
             alt Storage failure
                 D-->>C: Write error
                 C->>D: Roll back
@@ -148,6 +159,7 @@ sequenceDiagram
 **Assumptions**
 - Sync is started by the Collector schedule, not by a User action.
 - A batch is accepted or rejected as a whole. A failed or rejected sync never changes previously accepted data, and Users keep reading the last accepted data.
+- While syncs keep failing, the kept prices age: after 15 min reads show them as DELAYED, after 60 min without update reads show UNAVAILABLE (never 0).
 - Provider credentials stay on the server (Collector configuration). They are never sent to the browser.
 
 ### B. Read a Stock price
@@ -175,11 +187,11 @@ sequenceDiagram
             W->>R: Get latest price for symbol
             R->>X: Read latest price and as-of time
             X->>D: Query stored price
-            alt Storage failure
-                D-->>X: Error
+            alt Storage failure or no answer within 2 s
+                D-->>X: Error or no answer in time
                 X-->>R: Storage error
                 R-->>W: Read failed
-                W-->>U: 503 Data temporarily unavailable
+                W-->>U: 503 Result marked UNAVAILABLE
             else No price stored
                 D-->>X: No row found
                 X-->>R: Not found
@@ -188,13 +200,16 @@ sequenceDiagram
             else Price found
                 D-->>X: Price and as-of time
                 X-->>R: Price and as-of time
-                R->>R: Check data age against the accepted limit
-                alt Older than accepted limit
-                    R-->>W: Stale price
-                    W-->>U: 200 Last known price marked stale with as-of time
-                else Within accepted limit
+                R->>R: Check data age against the accepted limits (15 min and 60 min)
+                alt Age up to 15 min
                     R-->>W: Fresh price
                     W-->>U: 200 Price with as-of time
+                else Age over 15 min and up to 60 min
+                    R-->>W: Delayed price
+                    W-->>U: 200 Last known price marked DELAYED with as-of time
+                else Age over 60 min
+                    R-->>W: Price too old
+                    W-->>U: 200 Result marked UNAVAILABLE, no price value and never 0
                 end
             end
         end
@@ -203,8 +218,9 @@ sequenceDiagram
 ```
 
 **Assumptions**
-- The accepted age limit is the freshness limit from Lab 2. **[FILL IN the value]**
-- A stale price is still shown, clearly marked as stale with its as-of time, so the User is not misled.
+- Accepted age limits come from Lab 2: up to 15 min is normal, over 15 min is marked DELAYED, over 60 min without update is UNAVAILABLE (never 0).
+- If the read does not finish within 2 s (the Lab 2 latency limit), the request is cut and the User gets a result clearly marked UNAVAILABLE instead of a hanging request.
+- A DELAYED price is still shown, clearly marked with its as-of time, so the User is not misled.
 - A User read never needs a new Provider request. Only the Market Data Collector talks to the Provider.
 
 ### C. Change a private Watchlist
@@ -253,7 +269,7 @@ sequenceDiagram
             end
         end
     end
-    Note over U,D: Next read by the same User: after success the Watchlist includes the new Stock. After any rejection or failure it shows the previous Watchlist.
+    Note over U,D: Read-your-writes. Next read by the same User: after success the Watchlist includes the new Stock. After any rejection or failure it shows the previous Watchlist.
 ```
 
 **Assumptions**
