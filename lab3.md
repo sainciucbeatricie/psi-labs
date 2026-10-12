@@ -1,289 +1,289 @@
-# Lab 3: Draw the Dashboard Boundary
+# Laboratorul 3: Desenează limitele Dashboard-ului
 
-## Scope and load targets
+## Domeniu și ținte de încărcare
 
-The Dashboard lets an authenticated User browse and filter Stocks, read prices and history, and manage a private Watchlist. A Market Data Provider supplies delayed data and can return invalid data, rate limits, or outages.
+Dashboard-ul permite unui Utilizator autentificat să răsfoiască și să filtreze Acțiuni, să citească prețuri și istoric și să administreze un Watchlist privat. Un Furnizor de date de piață oferă date întârziate și poate returna date invalide, limitări de rată (rate limit) sau căderi (outage).
 
-Load targets from Lab 2 (used to size the design):
+Ținte de încărcare din Lab 2 (folosite la dimensionarea designului):
 
-| Target | Value from Lab 2 |
+| Țintă | Valoare din Lab 2 |
 |---|---|
-| Users (three scales) | 300 / 3,000 / 30,000 |
-| Steady read load | 79.2 / 792 / 7,920 RPS |
-| Market-open peak (with 10% margin) | 103 / 1,030 / 10,296 RPS |
-| Heaviest read (Stock price) | 60 / 600 / 6,000 RPS |
-| Latency | p95 of reads under 2 s. A read over 2 s is cut and returns a result clearly marked UNAVAILABLE. |
-| Availability | 99.9% in market hours (09:30-16:00, Mon-Fri), 99.5% the rest of the day |
-| Price freshness | Up to 15 min: normal. Over 15 min: marked DELAYED. Over 60 min without update: UNAVAILABLE (never 0). |
-| Watchlist consistency | Read-your-writes: the same User's next read shows the change immediately |
-| Storage | About 5,700 Stocks, about 71.1 MB/day of history, about 17.93 GB per year (252-day retention) |
+| Utilizatori (trei scări) | 300 / 3.000 / 30.000 |
+| Încărcare constantă de citiri | 79,2 / 792 / 7.920 RPS |
+| Vârf la deschiderea pieței (cu marjă de 10%) | 103 / 1.030 / 10.296 RPS |
+| Cea mai frecventă citire (Stock price) | 60 / 600 / 6.000 RPS |
+| Latență | p95 al citirilor sub 2 s. O citire peste 2 s este întreruptă și returnează un rezultat marcat clar „indisponibil". |
+| Disponibilitate | 99,9% în orele de piață (09:30-16:00, L-V), 99,5% în restul zilei |
+| Prospețimea prețului | Până la 15 min: normal. Peste 15 min: marcat „întârziat". Peste 60 min fără actualizare: „indisponibil" (niciodată 0). |
+| Consistența Watchlist-ului | Read-your-writes: următoarea citire a aceluiași Utilizator arată imediat modificarea |
+| Stocare | Aproximativ 5.700 de Acțiuni, circa 71,1 MB/zi de istoric, circa 17,93 GB pe an (retenție 252 de zile) |
 
-Design consequences of these targets:
-- User reads are served only from our own Database, so read latency does not depend on the Provider. The latest-price set is tiny (about 0.14 MB), so the heaviest read (Stock price) can be answered quickly from the Database.
-- The Provider is called only by the Market Data Collector on a schedule, so the number of Users does not change the number of Provider requests.
-- The Collector is a separate container, so a Provider failure cannot slow or break the other reads.
-- Watchlist reads and writes use the same Database and success is reported only after commit, so read-your-writes holds.
+Consecințe ale acestor ținte asupra designului:
+- Citirile Utilizatorilor sunt servite doar din Baza noastră de date, deci latența de citire nu depinde de Furnizor. Setul ultimelor prețuri este mic (circa 0,14 MB), deci cea mai frecventă citire (Stock price) poate fi servită rapid din Baza de date.
+- Furnizorul este apelat doar de Colectorul de date de piață, după un program, deci numărul de Utilizatori nu schimbă numărul de cereri către Furnizor.
+- Colectorul este un container separat, deci o problemă la Furnizor nu poate încetini sau întrerupe celelalte citiri.
+- Citirile și scrierile Watchlist-ului folosesc aceeași Bază de date, iar succesul se raportează doar după commit, deci read-your-writes este respectat.
 
 ---
 
-## 1. System-context diagram
+## 1. Diagrama de context al sistemului (System Context)
 
 ```mermaid
 flowchart LR
-    User["User<br/>(authenticated Person)"]
-    subgraph Boundary["System boundary"]
-        Dashboard["Dashboard<br/>Browse Stocks, read prices and history, manage private Watchlist"]
+    User["Utilizator<br/>(persoană autentificată)"]
+    subgraph Boundary["Limita sistemului"]
+        Dashboard["Dashboard<br/>Răsfoiește Acțiuni, citește prețuri și istoric, administrează Watchlist privat"]
     end
-    Provider["Market Data Provider<br/>(external system, delayed data)"]
+    Provider["Furnizor de date de piață<br/>(sistem extern, date întârziate)"]
 
-    User -->|"Browses and filters Stocks, reads prices and history, manages Watchlist (HTTPS)"| Dashboard
-    Dashboard -->|"Requests delayed market data (HTTPS API)"| Provider
-    Provider -->|"Returns delayed data, or invalid data, rate limit, outage"| Dashboard
+    User -->|"Răsfoiește și filtrează Acțiuni, citește prețuri și istoric, administrează Watchlist (HTTPS)"| Dashboard
+    Dashboard -->|"Cere date de piață întârziate (API HTTPS)"| Provider
+    Provider -->|"Returnează date întârziate, sau date invalide, rate limit, cădere"| Dashboard
 ```
 
-**Assumptions**
-- Authentication is part of the Dashboard. The User arrives already authenticated, so no separate identity system is drawn.
-- Only one external system exists: the Market Data Provider.
-- No internal runtime parts are shown on this level.
+**Ipoteze**
+- Autentificarea face parte din Dashboard. Utilizatorul ajunge deja autentificat, deci nu este desenat un sistem de identitate separat.
+- Există un singur sistem extern: Furnizorul de date de piață.
+- Pe acest nivel nu sunt arătate părți interne de execuție.
 
 ---
 
-## 2. Container diagram
+## 2. Diagrama de containere (Container)
 
 ```mermaid
 flowchart LR
-    User["User<br/>(authenticated Person)"]
-    Provider["Market Data Provider<br/>(external system)"]
+    User["Utilizator<br/>(persoană autentificată)"]
+    Provider["Furnizor de date de piață<br/>(sistem extern)"]
 
-    subgraph Boundary["Dashboard system boundary"]
-        App["Dashboard Application<br/>Serves the web UI and answers User requests"]
-        Collector["Market Data Collector<br/>Fetches, validates and stores Provider data"]
-        DB[("Database<br/>Stores Stocks, prices, history, Watchlists")]
+    subgraph Boundary["Limita sistemului Dashboard"]
+        App["Aplicația Dashboard<br/>Servește interfața web și răspunde cererilor Utilizatorilor"]
+        Collector["Colector de date de piață<br/>Preia, validează și stochează datele Furnizorului"]
+        DB[("Baza de date<br/>Stochează Acțiuni, prețuri, istoric, Watchlist-uri")]
     end
 
-    User -->|"Browses, filters, reads prices, manages Watchlist (HTTPS)"| App
-    App -->|"Reads Stocks, prices, history and reads or writes Watchlists (SQL)"| DB
-    Collector -->|"Writes validated prices and history (SQL)"| DB
-    Collector -->|"Requests delayed data with server-side credentials (HTTPS)"| Provider
+    User -->|"Răsfoiește, filtrează, citește prețuri, administrează Watchlist (HTTPS)"| App
+    App -->|"Citește Acțiuni, prețuri, istoric și citește sau scrie Watchlist-uri (SQL)"| DB
+    Collector -->|"Scrie prețuri și istoric validate (SQL)"| DB
+    Collector -->|"Cere date întârziate cu credențiale păstrate pe server (HTTPS)"| Provider
 ```
 
-**Responsibilities (one per part)**
-- **Dashboard Application**: handles all User requests (identity, input checks, reads, Watchlist changes).
-- **Market Data Collector**: runs the sync with the Provider, validates the data, and stores only accepted data.
-- **Database**: the single store for Stocks, prices, history, and Watchlists.
+**Responsabilități (câte una pentru fiecare parte)**
+- **Aplicația Dashboard**: gestionează toate cererile Utilizatorilor (identitate, verificarea intrărilor, citiri, modificări de Watchlist).
+- **Colector de date de piață**: rulează sincronizarea cu Furnizorul, validează datele și stochează doar datele acceptate.
+- **Baza de date**: singurul loc de stocare pentru Acțiuni, prețuri, istoric și Watchlist-uri.
 
-**Assumptions**
-- This is the smallest set that meets the requirements: separating the Collector from the Application keeps Provider failures away from User reads, and the Database is shared storage between the two.
-- The Dashboard Application never calls the Provider. Provider credentials exist only in the Collector configuration on the server.
-- The Collector starts syncs from its own schedule.
-- No separate cache container is added. The latest-price data is small and the Database serves it. If load tests show p95 above 2 s, a cache is the first change to consider.
+**Ipoteze**
+- Acesta este cel mai mic set care îndeplinește cerințele: separarea Colectorului de Aplicație ține problemele Furnizorului departe de citirile Utilizatorilor, iar Baza de date este stocarea comună a celor două.
+- Aplicația Dashboard nu apelează niciodată Furnizorul. Credențialele Furnizorului există doar în configurația Colectorului, pe server.
+- Colectorul pornește sincronizările după propriul program.
+- Nu se adaugă un container separat de cache. Datele ultimelor prețuri sunt mici și Baza de date le servește. Dacă testele de încărcare arată p95 peste 2 s, un cache este prima schimbare de luat în calcul.
 
 ---
 
-## 3. Component diagram (Dashboard Application)
+## 3. Diagrama de componente (Aplicația Dashboard)
 
 ```mermaid
 flowchart TB
-    User["User<br/>(Person)"]
+    User["Utilizator<br/>(persoană)"]
 
-    subgraph DA["Dashboard Application (container)"]
-        WI["Web Interface<br/>Receives requests, validates input, renders results"]
-        AU["Authentication<br/>Verifies the User identity and session"]
-        SB["Stock Browser<br/>Browses and filters Stocks"]
-        PR["Price Reader<br/>Reads prices and history, checks data age"]
-        WM["Watchlist Manager<br/>Checks permissions and changes the private Watchlist"]
-        DAC["Data Access<br/>Reads and writes the Database"]
+    subgraph DA["Aplicația Dashboard (container)"]
+        WI["Interfața web<br/>Primește cererile, validează intrările, afișează rezultatele"]
+        AU["Autentificare<br/>Verifică identitatea Utilizatorului și sesiunea"]
+        SB["Navigator de Acțiuni<br/>Răsfoiește și filtrează Acțiuni"]
+        PR["Cititor de prețuri<br/>Citește prețuri și istoric, verifică vechimea datelor"]
+        WM["Manager Watchlist<br/>Verifică permisiunile și modifică Watchlist-ul privat"]
+        DAC["Acces la date<br/>Citește și scrie în Baza de date"]
     end
 
-    DB[("Database<br/>(container)")]
+    DB[("Baza de date<br/>(container)")]
 
-    User -->|"HTTPS requests"| WI
-    WI -->|"Verifies session"| AU
-    WI -->|"Browse and filter requests"| SB
-    WI -->|"Price and history requests"| PR
-    WI -->|"Watchlist change requests"| WM
-    SB -->|"Reads Stocks"| DAC
-    PR -->|"Reads prices and history"| DAC
-    WM -->|"Reads and writes Watchlist"| DAC
-    DAC -->|"SQL queries and transactions"| DB
+    User -->|"Cereri HTTPS"| WI
+    WI -->|"Verifică sesiunea"| AU
+    WI -->|"Cereri de răsfoire și filtrare"| SB
+    WI -->|"Cereri de preț și istoric"| PR
+    WI -->|"Cereri de modificare a Watchlist-ului"| WM
+    SB -->|"Citește Acțiuni"| DAC
+    PR -->|"Citește prețuri și istoric"| DAC
+    WM -->|"Citește și scrie Watchlist"| DAC
+    DAC -->|"Interogări și tranzacții SQL"| DB
 ```
 
-**Assumptions**
-- Only the Dashboard Application is opened. User and Database are the only outside elements that communicate directly with its components.
-- The Market Data Collector and the Provider are not shown because they do not communicate directly with the Dashboard Application. The Collector reaches the Application only through data stored in the Database.
-- The session is a signed token, so Authentication can verify it without a storage call.
+**Ipoteze**
+- Este deschisă doar Aplicația Dashboard. Utilizatorul și Baza de date sunt singurele elemente exterioare care comunică direct cu componentele ei.
+- Colectorul de date de piață și Furnizorul nu apar, pentru că nu comunică direct cu Aplicația Dashboard. Colectorul ajunge la Aplicație doar prin datele stocate în Baza de date.
+- Sesiunea este un token semnat, deci Autentificarea o poate verifica fără apel către stocare.
 
 ---
 
-## 4. Sequence diagrams
+## 4. Diagrame de secvență
 
-### A. Sync market data
+### A. Sincronizarea datelor de piață
 
 ```mermaid
 sequenceDiagram
-    participant C as Market Data Collector
-    participant P as Market Data Provider
-    participant D as Database
+    participant C as Colector de date de piață
+    participant P as Furnizor de date de piață
+    participant D as Baza de date
 
-    Note over C: Sync starts from the Collector schedule
-    C->>P: Request delayed prices (API key kept on the server)
-    alt Provider timeout or outage
-        C->>C: Timeout or 5xx, no usable response
-        Note over C,D: Nothing is written. Previously accepted data stays unchanged and readable.
-        C->>C: Log the failure and retry at the next scheduled sync
+    Note over C: Sincronizarea pornește după programul Colectorului
+    C->>P: Cere prețuri întârziate (cheia API rămâne pe server)
+    alt Timeout sau cădere a Furnizorului
+        C->>C: Timeout sau 5xx, niciun răspuns utilizabil
+        Note over C,D: Nu se scrie nimic. Datele acceptate anterior rămân neschimbate și pot fi citite.
+        C->>C: Înregistrează eșecul și reîncearcă la următoarea sincronizare programată
     else Rate limit
         P-->>C: HTTP 429 Too Many Requests
-        Note over C,D: Nothing is written. Previously accepted data stays unchanged and readable.
-        C->>C: Log the failure and wait before the next sync
-    else Response received
-        P-->>C: Delayed price batch
-        C->>C: Validate batch (known symbols, price above 0, valid timestamp, not older than previous)
-        alt Batch invalid
-            Note over C,D: The invalid batch is rejected and never stored. Previously accepted data stays unchanged and readable.
-            C->>C: Log the rejection
-        else Batch valid
-            C->>D: Store batch in one transaction (latest prices and history points)
-            alt Storage failure
-                D-->>C: Write error
-                C->>D: Roll back
-                Note over C,D: Previously accepted data stays unchanged and readable.
-                C->>C: Log the failure and retry at the next scheduled sync
-            else Stored
-                D-->>C: Commit OK
-                Note over C,D: Accepted data becomes available to later reads only after this commit
+        Note over C,D: Nu se scrie nimic. Datele acceptate anterior rămân neschimbate și pot fi citite.
+        C->>C: Înregistrează eșecul și așteaptă înainte de următoarea sincronizare
+    else Răspuns primit
+        P-->>C: Lot de prețuri întârziate
+        C->>C: Validează lotul (simboluri cunoscute, preț peste 0, timestamp valid, nu mai vechi decât cel anterior)
+        alt Lot invalid
+            Note over C,D: Lotul invalid este respins și nu este stocat niciodată. Datele acceptate anterior rămân neschimbate și pot fi citite.
+            C->>C: Înregistrează respingerea
+        else Lot valid
+            C->>D: Stochează lotul într-o singură tranzacție (ultimele prețuri și puncte de istoric)
+            alt Eșec de stocare
+                D-->>C: Eroare de scriere
+                C->>D: Rollback
+                Note over C,D: Datele acceptate anterior rămân neschimbate și pot fi citite.
+                C->>C: Înregistrează eșecul și reîncearcă la următoarea sincronizare programată
+            else Stocat
+                D-->>C: Commit reușit
+                Note over C,D: Datele acceptate devin disponibile pentru citirile ulterioare doar după acest commit
             end
         end
     end
 ```
 
-**Assumptions**
-- Sync is started by the Collector schedule, not by a User action.
-- A batch is accepted or rejected as a whole. A failed or rejected sync never changes previously accepted data, and Users keep reading the last accepted data.
-- While syncs keep failing, the kept prices age: after 15 min reads show them as DELAYED, after 60 min without update reads show UNAVAILABLE (never 0).
-- Provider credentials stay on the server (Collector configuration). They are never sent to the browser.
+**Ipoteze**
+- Sincronizarea este pornită de programul Colectorului, nu de o acțiune a Utilizatorului.
+- Un lot este acceptat sau respins în întregime. O sincronizare eșuată sau respinsă nu schimbă niciodată datele acceptate anterior, iar Utilizatorii continuă să citească ultimele date acceptate.
+- Cât timp sincronizările continuă să eșueze, prețurile păstrate îmbătrânesc: după 15 min citirile le arată ca „întârziate", după 60 min fără actualizare citirile arată „indisponibil" (niciodată 0).
+- Credențialele Furnizorului rămân pe server (configurația Colectorului). Nu sunt trimise niciodată către browser.
 
-### B. Read a Stock price
+### B. Citirea prețului unei Acțiuni
 
 ```mermaid
 sequenceDiagram
-    actor U as User
-    participant W as Web Interface
-    participant A as Authentication
-    participant R as Price Reader
-    participant X as Data Access
-    participant D as Database
+    actor U as Utilizator
+    participant W as Interfața web
+    participant A as Autentificare
+    participant R as Cititor de prețuri
+    participant X as Acces la date
+    participant D as Baza de date
 
-    U->>W: Request price for a Stock symbol
-    W->>A: Verify session
-    alt Not authenticated
-        A-->>W: Identity rejected
-        W-->>U: 401 Sign in required
-    else Authenticated
-        A-->>W: User identity confirmed
-        W->>W: Validate symbol format
-        alt Invalid input
-            W-->>U: 400 Invalid symbol
-        else Valid input
-            W->>R: Get latest price for symbol
-            R->>X: Read latest price and as-of time
-            X->>D: Query stored price
-            alt Storage failure or no answer within 2 s
-                D-->>X: Error or no answer in time
-                X-->>R: Storage error
-                R-->>W: Read failed
-                W-->>U: 503 Result marked UNAVAILABLE
-            else No price stored
-                D-->>X: No row found
-                X-->>R: Not found
-                R-->>W: Price missing
-                W-->>U: 404 Price not available
-            else Price found
-                D-->>X: Price and as-of time
-                X-->>R: Price and as-of time
-                R->>R: Check data age against the accepted limits (15 min and 60 min)
-                alt Age up to 15 min
-                    R-->>W: Fresh price
-                    W-->>U: 200 Price with as-of time
-                else Age over 15 min and up to 60 min
-                    R-->>W: Delayed price
-                    W-->>U: 200 Last known price marked DELAYED with as-of time
-                else Age over 60 min
-                    R-->>W: Price too old
-                    W-->>U: 200 Result marked UNAVAILABLE, no price value and never 0
+    U->>W: Cere prețul unei Acțiuni după simbol
+    W->>A: Verifică sesiunea
+    alt Neautentificat
+        A-->>W: Identitate respinsă
+        W-->>U: 401 Autentificare necesară
+    else Autentificat
+        A-->>W: Identitatea Utilizatorului confirmată
+        W->>W: Validează formatul simbolului
+        alt Intrare invalidă
+            W-->>U: 400 Simbol invalid
+        else Intrare validă
+            W->>R: Cere ultimul preț pentru simbol
+            R->>X: Citește ultimul preț și ora
+            X->>D: Interoghează prețul stocat
+            alt Eșec de stocare sau niciun răspuns în 2 s
+                D-->>X: Eroare sau niciun răspuns la timp
+                X-->>R: Eroare de stocare
+                R-->>W: Citire eșuată
+                W-->>U: 503 Rezultat marcat „indisponibil"
+            else Niciun preț stocat
+                D-->>X: Niciun rând găsit
+                X-->>R: Negăsit
+                R-->>W: Preț lipsă
+                W-->>U: 404 Preț indisponibil
+            else Preț găsit
+                D-->>X: Preț și ora actualizării
+                X-->>R: Preț și ora actualizării
+                R->>R: Verifică vechimea datelor față de limitele acceptate (15 min și 60 min)
+                alt Vechime până la 15 min
+                    R-->>W: Preț proaspăt
+                    W-->>U: 200 Preț cu ora actualizării
+                else Vechime peste 15 min și până la 60 min
+                    R-->>W: Preț întârziat
+                    W-->>U: 200 Ultimul preț cunoscut marcat „întârziat", cu ora actualizării
+                else Vechime peste 60 min
+                    R-->>W: Preț prea vechi
+                    W-->>U: 200 Rezultat marcat „indisponibil", fără valoare de preț și niciodată 0
                 end
             end
         end
     end
-    Note over U,D: A User read never calls the Market Data Provider. It reads only stored data.
+    Note over U,D: O citire a Utilizatorului nu apelează niciodată Furnizorul de date de piață. Citește doar date stocate.
 ```
 
-**Assumptions**
-- Accepted age limits come from Lab 2: up to 15 min is normal, over 15 min is marked DELAYED, over 60 min without update is UNAVAILABLE (never 0).
-- If the read does not finish within 2 s (the Lab 2 latency limit), the request is cut and the User gets a result clearly marked UNAVAILABLE instead of a hanging request.
-- A DELAYED price is still shown, clearly marked with its as-of time, so the User is not misled.
-- A User read never needs a new Provider request. Only the Market Data Collector talks to the Provider.
+**Ipoteze**
+- Limitele de vechime acceptate vin din Lab 2: până la 15 min este normal, peste 15 min este marcat „întârziat", peste 60 min fără actualizare este „indisponibil" (niciodată 0).
+- Dacă citirea nu se termină în 2 s (limita de latență din Lab 2), cererea este întreruptă, iar Utilizatorul primește un rezultat marcat clar „indisponibil", nu o cerere blocată.
+- Un preț „întârziat" este afișat totuși, marcat clar și cu ora actualizării, ca Utilizatorul să nu fie indus în eroare.
+- O citire a Utilizatorului nu necesită niciodată o cerere nouă către Furnizor. Doar Colectorul de date de piață comunică cu Furnizorul.
 
-### C. Change a private Watchlist
+### C. Modificarea unui Watchlist privat
 
 ```mermaid
 sequenceDiagram
-    actor U as User
-    participant W as Web Interface
-    participant A as Authentication
-    participant M as Watchlist Manager
-    participant X as Data Access
-    participant D as Database
+    actor U as Utilizator
+    participant W as Interfața web
+    participant A as Autentificare
+    participant M as Manager Watchlist
+    participant X as Acces la date
+    participant D as Baza de date
 
-    U->>W: Request to add a Stock to my Watchlist
-    W->>A: Verify session
-    alt Not authenticated
-        A-->>W: Identity rejected
-        W-->>U: 401 Sign in required
-    else Authenticated
-        A-->>W: User identity confirmed
-        W->>W: Validate input (symbol format, Stock exists)
-        alt Invalid input
-            W-->>U: 400 Invalid input, Watchlist unchanged
-        else Valid input
-            W->>M: Add Stock for the identified User
-            M->>M: Permission check (target Watchlist must belong to the identified User)
-            alt Unauthorized attempt
-                M-->>W: Permission denied
-                W-->>U: 403 Forbidden, Watchlist unchanged
-            else Permitted
-                M->>X: Save change
-                X->>D: Write in one transaction
-                alt Storage failure
-                    D-->>X: Write error
-                    X->>D: Roll back
-                    X-->>M: Save failed
-                    M-->>W: Change failed
-                    W-->>U: 503 Not saved, Watchlist unchanged
-                else Saved
-                    D-->>X: Commit OK
-                    Note over X,D: Commit point. Success can be reported only after this.
-                    X-->>M: Saved
-                    M-->>W: Change done
-                    W-->>U: 200 Watchlist updated
+    U->>W: Cere adăugarea unei Acțiuni în Watchlist-ul meu
+    W->>A: Verifică sesiunea
+    alt Neautentificat
+        A-->>W: Identitate respinsă
+        W-->>U: 401 Autentificare necesară
+    else Autentificat
+        A-->>W: Identitatea Utilizatorului confirmată
+        W->>W: Validează intrarea (formatul simbolului, Acțiunea există)
+        alt Intrare invalidă
+            W-->>U: 400 Intrare invalidă, Watchlist neschimbat
+        else Intrare validă
+            W->>M: Adaugă Acțiunea pentru Utilizatorul identificat
+            M->>M: Verificare permisiuni (Watchlist-ul țintă trebuie să aparțină Utilizatorului identificat)
+            alt Încercare neautorizată
+                M-->>W: Permisiune refuzată
+                W-->>U: 403 Interzis, Watchlist neschimbat
+            else Permis
+                M->>X: Salvează modificarea
+                X->>D: Scrie într-o singură tranzacție
+                alt Eșec de stocare
+                    D-->>X: Eroare de scriere
+                    X->>D: Rollback
+                    X-->>M: Salvare eșuată
+                    M-->>W: Modificare eșuată
+                    W-->>U: 503 Nesalvat, Watchlist neschimbat
+                else Salvat
+                    D-->>X: Commit reușit
+                    Note over X,D: Punctul de commit. Succesul poate fi raportat doar după acesta.
+                    X-->>M: Salvat
+                    M-->>W: Modificare efectuată
+                    W-->>U: 200 Watchlist actualizat
                 end
             end
         end
     end
-    Note over U,D: Read-your-writes. Next read by the same User: after success the Watchlist includes the new Stock. After any rejection or failure it shows the previous Watchlist.
+    Note over U,D: Read-your-writes. Următoarea citire a aceluiași Utilizator: după succes, Watchlist-ul include noua Acțiune. După orice respingere sau eșec, arată Watchlist-ul anterior.
 ```
 
-**Assumptions**
-- The Watchlist owner is taken from the verified session, never from the request body. A User cannot change another User's Watchlist.
-- Success is reported only after the Database commit. After a rejected or failed change, the same User's next read shows exactly the Watchlist from before the request.
-- Watchlist data is private: it is returned only to its owner.
+**Ipoteze**
+- Proprietarul Watchlist-ului este luat din sesiunea verificată, niciodată din corpul cererii. Un Utilizator nu poate modifica Watchlist-ul altui Utilizator.
+- Succesul este raportat doar după commit-ul în Baza de date. După o modificare respinsă sau eșuată, următoarea citire a aceluiași Utilizator arată exact Watchlist-ul de dinaintea cererii.
+- Datele Watchlist-ului sunt private: sunt returnate doar proprietarului lor.
 
 ---
 
 ## Checklist
 
-- [x] I included one System Context, one Container, and one Component diagram.
-- [x] I included the three required sequence diagrams.
-- [x] All six Mermaid blocks render without an error.
-- [x] The Component diagram opens only the Dashboard Application.
-- [x] My flows show normal results, rejected actions, and failure results.
-- [x] The design covers normal reads, private data, provider ingestion, and failures.
+- [x] Am inclus o diagramă System Context, una Container și una Component.
+- [x] Am inclus cele trei diagrame de secvență cerute.
+- [x] Toate cele șase blocuri Mermaid se randează fără eroare.
+- [x] Diagrama Component deschide doar Aplicația Dashboard.
+- [x] Fluxurile mele arată rezultate normale, acțiuni respinse și rezultate de eșec.
+- [x] Designul acoperă citiri normale, date private, preluarea datelor de la Furnizor și eșecurile.
