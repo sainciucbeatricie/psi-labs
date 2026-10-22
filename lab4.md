@@ -253,3 +253,87 @@ TTL-ul Redis controlează durata cache-ului, nu prospețimea datelor. La fiecare
 | Sursă durabilă indisponibilă | Dacă nu există date valide în cache: 503 „indisponibil" |
 
 Warmup-ul este limitat pentru a evita supraîncărcarea bazei de date. Nu presupunem cache hits în calculele de capacitate.
+
+
+## 4. Testarea practică Redis
+
+### 4.1. Pornirea și verificarea Redis
+
+Am pornit Redis într-un container Docker, fără persistență pe disc.
+
+Comanda de verificare:
+
+```powershell
+docker exec redis-lab4 redis-cli PING
+```
+
+Rezultat: `PONG`. Redis funcționează corect.
+
+### 4.2. Testul Stock Price
+
+Cheia utilizată: `stock:price:AAPL`.
+
+| Operație | Rezultat |
+|---|---|
+| GET inițial | Cache MISS (valoare lipsă) |
+| Citire din sursa durabilă | Simulată cu date de exemplu |
+| SET JSON | OK |
+| EXPIRE 30 | 1 |
+| GET repetat | Cache HIT, JSON returnat |
+| TTL | 21 secunde rămase |
+
+Exemplu de valoare JSON:
+
+```json
+{
+  "symbol": "AAPL",
+  "price": 185.50,
+  "currency": "USD",
+  "source_time": "2026-10-22T10:40:00Z",
+  "cached_at": "2026-10-22T10:42:00Z"
+}
+```
+
+### 4.3. Testul Overview
+
+Cheia utilizată: `market:overview:v1`.
+
+| Operație | Rezultat |
+|---|---|
+| GET inițial | Cache MISS (valoare lipsă) |
+| Citire din sursa durabilă | Simulată cu date de exemplu |
+| SET JSON | OK |
+| EXPIRE 60 | 1 |
+| GET repetat | Cache HIT, JSON returnat |
+| TTL | 52 secunde rămase |
+
+Exemplu de valoare JSON:
+
+```json
+{
+  "stocks": [
+    {"symbol": "AAPL", "price": 185.50},
+    {"symbol": "MSFT", "price": 420.25}
+  ],
+  "source_time": "2026-10-22T10:40:00Z",
+  "cached_at": "2026-10-22T10:42:00Z"
+}
+```
+
+### 4.4. Prospețimea și persistența datelor
+
+`source_time` reprezintă ora datelor de la Furnizor, iar `cached_at` reprezintă ora introducerii în cache.
+
+TTL-ul arată cât timp mai există cheia în Redis, dar nu garantează că prețul este actual. Prospețimea se verifică folosind `source_time`.
+
+Am ales Redis fără persistență pe disc (fără RDB și AOF), deoarece este folosit doar ca nivel de cache. După repornire, Redis poate fi gol, iar datele trebuie reconstruite din Market Data Store.
+
+Dacă Redis nu funcționează, Dashboard citește direct din Read Replica, în limita capacității disponibile. Dacă nu poate obține date valide, returnează „indisponibil”.
+
+**Notă:** Testele Redis au fost executate practic. Citirea din Market Data Store a fost simulată cu date JSON de exemplu; nu a fost testată o conexiune reală la baza de date.
+
+## 5. Concluzie
+
+În acest laborator am proiectat scalarea Dashboard-ului folosind Load Balancer, 4 instanțe Dashboard, două replici de citire și cache L1/Redis. Am testat practic comenzile Redis pentru Stock Price și Overview, inclusiv Cache MISS, Cache HIT și TTL.
+
+Soluția reduce încărcarea bazei de date, iar în cazul pierderii cache-ului, datele pot fi reconstruite din sursa durabilă.
