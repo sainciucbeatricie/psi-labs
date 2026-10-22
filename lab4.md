@@ -369,9 +369,7 @@ Mai jos sunt capturile de ecran realizate în PowerShell, care confirmă executa
 ## 5. Concluzie
 
 În acest laborator am proiectat scalarea Dashboard-ului folosind Load Balancer, 4 instanțe Dashboard, două replici de citire și cache L1/Redis. Am testat practic comenzile Redis pentru Stock Price și Overview, inclusiv Cache MISS, Cache HIT și TTL.
-
 Soluția reduce încărcarea bazei de date, iar în cazul pierderii cache-ului, datele pot fi reconstruite din sursa durabilă.
-
 
 ## 6. Checklist final
 
