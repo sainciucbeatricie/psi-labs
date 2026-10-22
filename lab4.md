@@ -48,6 +48,9 @@ Oprirea unei instanțe nu afectează datele persistente. Cache-ul L1 se pierde, 
 
 Calculul nu presupune cache hits. Dacă o replică se oprește, capacitatea de citire scade sub țintă.
 
+
+**Limitare:** cele 2 replici acoperă doar cei 720 RPS pentru Stock Price. Celelalte citiri publice pot necesita capacitate suplimentară sau optimizare. Write Leader rămâne rezervat pentru scrieri și citirile care cer cele mai noi date.
+
 ### 2.2. Diagrama Container View actualizată
 
 ```mermaid
@@ -123,6 +126,9 @@ Datele Watchlist-ului sunt private și nu sunt păstrate în cache-ul public.
 | TTL Redis | 30 secunde | 60 secunde |
 | Cache miss | Citire din Read Replica | Citire din Read Replica |
 | Invalidare | TTL sau actualizare după commit | TTL sau actualizare după commit |
+
+
+Pentru Stock Price, cheia include simbolul acțiunii. Pentru Overview, cheia `market:overview:v1` reprezintă lista standard. Dacă apar filtre, sortare sau paginare, acestea trebuie incluse în cheia cache-ului, pentru a nu returna rezultate greșite.
 
 **Reguli comune:**
 
@@ -330,10 +336,54 @@ Am ales Redis fără persistență pe disc (fără RDB și AOF), deoarece este f
 
 Dacă Redis nu funcționează, Dashboard citește direct din Read Replica, în limita capacității disponibile. Dacă nu poate obține date valide, returnează „indisponibil”.
 
+În testarea practică am folosit `SET` și `EXPIRE` separat, pentru a salva JSON-ul corect din PowerShell. În aplicație, salvarea și expirarea trebuie făcute împreună, prin `SET` cu `EX`, ca să evităm o cheie fără TTL.
+
 **Notă:** Testele Redis au fost executate practic. Citirea din Market Data Store a fost simulată cu date JSON de exemplu; nu a fost testată o conexiune reală la baza de date.
+
+
+### 4.5. Dovezi ale testării practice Redis
+
+Mai jos sunt capturile de ecran realizate în PowerShell, care confirmă executarea comenzilor Redis.
+
+**1. Verificarea conexiunii Redis – PING/PONG**
+
+![Verificare Redis PING](Redis_PING.png)
+
+**2. Stock Price – Cache MISS**
+
+![Stock Price GET MISS](Redis_GET_MISS.png)
+
+**3. Stock Price – SET, GET HIT și TTL**
+
+![Stock Price test final](Redis_StockPrice_Final.png)
+
+**4. Overview – Cache MISS**
+
+![Overview GET MISS](Redis_Overview_MISS.png)
+
+**5. Overview – SET, GET HIT și TTL**
+
+![Overview test final](Redis_Overview_Final.png)
+
 
 ## 5. Concluzie
 
 În acest laborator am proiectat scalarea Dashboard-ului folosind Load Balancer, 4 instanțe Dashboard, două replici de citire și cache L1/Redis. Am testat practic comenzile Redis pentru Stock Price și Overview, inclusiv Cache MISS, Cache HIT și TTL.
 
 Soluția reduce încărcarea bazei de date, iar în cazul pierderii cache-ului, datele pot fi reconstruite din sursa durabilă.
+
+
+## 6. Checklist final
+
+- [x] Calculul instanțelor Dashboard și rezerva de 20%.
+- [x] Alegerea Load Balancer-ului și explicarea limitării.
+- [x] Calculul replicilor și precizarea capacității.
+- [x] Actualizarea diagramei Container View.
+- [x] Păstrarea cerințelor din Lab 2 și Lab 3.
+- [x] Cache L1 și Redis pentru Stock Price și Overview.
+- [x] Două diagrame de secvență cu HIT, MISS și erori.
+- [x] TTL, prospețimea datelor și tratarea erorilor.
+- [x] Warmup limitat și recuperarea după pierderea cache-ului.
+- [x] Testarea Redis: PING, GET, SET, EXPIRE și TTL.
+- [x] Screenshoturi cu rezultatele testelor.
+- [x] Explicarea persistenței Redis și a limitărilor testării.
