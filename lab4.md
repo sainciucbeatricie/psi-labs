@@ -1,4 +1,3 @@
-
 # Laboratorul 4: Scalarea citirilor din Dashboard
 
 ## Scop
@@ -134,7 +133,7 @@ Pentru Stock Price, cheia include simbolul acțiunii. Pentru Overview, cheia `ma
 
 - L1 este local fiecărei instanțe Dashboard.
 - Redis este partajat între toate instanțele.
-- Datele sunt salvate în cache doar după citirea reușită din Baza de date.
+- Datele sunt salvate în cache doar dacă sunt valide și respectă regulile de prospețime.
 - Timestamp-ul original al prețului se păstrează în cache.
 - La fiecare răspuns se verifică vechimea datelor.
 - Preț ≤15 min: normal; >15 min: întârziat; >60 min: indisponibil.
