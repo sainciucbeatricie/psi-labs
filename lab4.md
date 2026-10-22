@@ -125,7 +125,7 @@ Datele Watchlist-ului sunt private și nu sunt păstrate în cache-ul public.
 | TTL L1 | 5 secunde | 10 secunde |
 | TTL Redis | 30 secunde | 60 secunde |
 | Cache miss | Citire din Read Replica | Citire din Read Replica |
-| Invalidare | TTL sau actualizare după commit | TTL sau actualizare după commit |
+| Invalidare | Expirare prin TTL | Expirare prin TTL |
 
 
 Pentru Stock Price, cheia include simbolul acțiunii. Pentru Overview, cheia `market:overview:v1` reprezintă lista standard. Dacă apar filtre, sortare sau paginare, acestea trebuie incluse în cheia cache-ului, pentru a nu returna rezultate greșite.
@@ -147,36 +147,45 @@ Pentru Stock Price, cheia include simbolul acțiunii. Pentru Overview, cheia `ma
 sequenceDiagram
     actor U as Utilizator
     participant D as Dashboard
-    participant L as Cache L1
+    participant L1 as Cache L1
     participant R as Redis
     participant DB as Read Replica
 
     U->>D: Cere prețul AAPL
-    D->>L: Caută stock:price:AAPL
+    D->>L1: Caută stock:price:AAPL
 
     alt L1 HIT
-        L-->>D: Preț și source_time
+        L1-->>D: Preț și source_time
     else L1 MISS
         D->>R: GET stock:price:AAPL
         alt Redis HIT
             R-->>D: Preț și source_time
-            D->>L: Salvează în L1 (5 s)
+            D->>D: Verifică source_time
+            opt Date acceptate
+                D->>L1: Salvează în L1 (5 s)
+            end
         else Redis MISS sau indisponibil
             D->>DB: Citește ultimul preț acceptat
             alt Sursa disponibilă
                 DB-->>D: Preț și source_time
-                D->>R: SET EX 30 dacă Redis funcționează
-                D->>L: Salvează în L1 (5 s)
+                D->>D: Verifică source_time
+                opt Date acceptate
+                    D->>R: SET EX 30 dacă Redis funcționează
+                    D->>L1: Salvează în L1 (5 s)
+                end
             else Sursa indisponibilă
                 DB-->>D: Eroare sau timeout
-                D-->>U: 503 Indisponibil
             end
         end
     end
 
-    opt Există rezultat
-        D->>D: Verifică vechimea source_time
-        D-->>U: Normal, întârziat sau indisponibil
+    D->>D: Verifică prospețimea rezultatului
+    alt Date de maximum 15 minute
+        D-->>U: Preț normal
+    else Date între 15 și 60 minute
+        D-->>U: Preț întârziat
+    else Date lipsă sau peste 60 minute
+        D-->>U: 503 indisponibil
     end
 ```
 
@@ -188,36 +197,43 @@ sequenceDiagram
 sequenceDiagram
     actor U as Utilizator
     participant D as Dashboard
-    participant L as Cache L1
+    participant L1 as Cache L1
     participant R as Redis
     participant DB as Read Replica
 
     U->>D: Cere Overview
-    D->>L: Caută market:overview:v1
+    D->>L1: Caută market:overview:v1
 
     alt L1 HIT
-        L-->>D: Acțiuni și prețuri
+        L1-->>D: Acțiuni, prețuri și source_time
     else L1 MISS
         D->>R: GET market:overview:v1
         alt Redis HIT
-            R-->>D: Acțiuni și prețuri
-            D->>L: Salvează în L1 (10 s)
+            R-->>D: Acțiuni, prețuri și source_time
+            D->>D: Verifică fiecare source_time
+            opt Date acceptate
+                D->>L1: Salvează în L1 (10 s)
+            end
         else Redis MISS sau indisponibil
             D->>DB: Citește datele Overview
             alt Sursa disponibilă
                 DB-->>D: Acțiuni, prețuri și ore
-                D->>R: SET EX 60 dacă Redis funcționează
-                D->>L: Salvează în L1 (10 s)
+                D->>D: Verifică fiecare source_time
+                opt Date acceptate
+                    D->>R: SET EX 60 dacă Redis funcționează
+                    D->>L1: Salvează în L1 (10 s)
+                end
             else Sursa indisponibilă
                 DB-->>D: Eroare sau timeout
-                D-->>U: 503 Indisponibil
             end
         end
     end
 
-    opt Există rezultat
-        D->>D: Verifică vechimea fiecărui preț
+    D->>D: Verifică prospețimea fiecărui preț
+    alt Date disponibile
         D-->>U: Overview cu starea fiecărui preț
+    else Nu există date valide
+        D-->>U: 503 indisponibil
     end
 ```
 
@@ -231,7 +247,7 @@ sequenceDiagram
 | Read Replica indisponibilă | Încearcă cealaltă replică |
 | Date lipsă | Returnează „indisponibil", nu 0 |
 | Preț mai vechi de 60 min | Nu afișează valoarea prețului |
-| Timeout peste 2 s | Întrerupe cererea și returnează „indisponibil" |
+| Limita de 2 s atinsă | Oprește așteptarea și returnează 503 „indisponibil” dacă nu există date valide |
 
 **Decizie:** cache-ul îmbunătățește performanța, dar Baza de date rămâne sursa principală a datelor. TTL-ul cache-ului nu înlocuiește verificarea prospețimii prețurilor.
 
@@ -369,6 +385,7 @@ Mai jos sunt capturile de ecran realizate în PowerShell, care confirmă executa
 ## 5. Concluzie
 
 În acest laborator am proiectat scalarea Dashboard-ului folosind Load Balancer, 4 instanțe Dashboard, două replici de citire și cache L1/Redis. Am testat practic comenzile Redis pentru Stock Price și Overview, inclusiv Cache MISS, Cache HIT și TTL.
+
 Soluția reduce încărcarea bazei de date, iar în cazul pierderii cache-ului, datele pot fi reconstruite din sursa durabilă.
 
 ## 6. Checklist final
