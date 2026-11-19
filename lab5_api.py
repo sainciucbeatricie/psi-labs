@@ -1,10 +1,10 @@
-
 """Lab 5: API demonstrativ pentru Personal Investment Dashboard."""
 
 from datetime import datetime, timedelta, timezone
 from typing import Literal
 
-from fastapi import FastAPI, Depends, Header, HTTPException, Query, Request
+from fastapi import FastAPI, Depends, HTTPException, Query, Request
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
@@ -150,11 +150,18 @@ async def validation_error(_: Request, exc: RequestValidationError):
 
 # Autentificare demonstrativa
 
+security = HTTPBearer(auto_error=False)
+
 def current_user(
-    authorization: str | None = Header(default=None)
+    credentials: HTTPAuthorizationCredentials | None = Depends(security)
 ) -> str:
-    if authorization != "Bearer demo-token":
+    if (
+        credentials is None
+        or credentials.scheme.lower() != "bearer"
+        or credentials.credentials != "demo-token"
+    ):
         fail(401, "unauthorized", "Token lipsă sau invalid")
+
     return "demo-user"
 
 
